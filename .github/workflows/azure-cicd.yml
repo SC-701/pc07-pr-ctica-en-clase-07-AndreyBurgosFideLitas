@@ -1,0 +1,101 @@
+name: CI/CD Productos Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+
+# -------------------------
+# BUILD Y DEPLOY API
+# -------------------------
+
+  build-deploy-api:
+    runs-on: windows-latest
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore API
+      run: dotnet restore ./Productos.API
+
+    - name: Build API
+      run: dotnet build ./Productos.API --configuration Release --no-restore
+
+    - name: Publish API
+      run: dotnet publish ./Productos.API -c Release -o ./publish/api
+
+    - name: Deploy API to Azure
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: sc701productos
+        publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+        package: ./publish/api
+
+
+# -------------------------
+# BUILD Y DEPLOY WEB
+# -------------------------
+
+  build-deploy-web:
+    runs-on: windows-latest
+    needs: build-deploy-api
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore Web
+      run: dotnet restore ./Productos.Web
+
+    - name: Build Web
+      run: dotnet build ./Productos.Web --configuration Release --no-restore
+
+    - name: Publish Web
+      run: dotnet publish ./Productos.Web -c Release -o ./publish/web
+
+    - name: Deploy Web to Azure
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: productosweb
+        publish-profile: ${{ secrets.AZURE_WEB_PUBLISH_PROFILE }}
+        package: ./publish/web
+
+
+# -------------------------
+# DEPLOY DATABASE
+# -------------------------
+
+  deploy-database:
+    runs-on: windows-latest
+    needs: build-deploy-web
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Deploy SQL scripts
+      uses: azure/sql-action@v2
+      with:
+        connection-string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+        path: ./Productos.API/Producto.BD
+        action: publish
