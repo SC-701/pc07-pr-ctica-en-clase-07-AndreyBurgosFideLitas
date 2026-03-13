@@ -10,7 +10,6 @@ env:
   DOTNET_VERSION: '8.0.x'
 
 jobs:
-
   build-deploy-api:
     runs-on: windows-latest
 
@@ -27,7 +26,7 @@ jobs:
       uses: NuGet/setup-nuget@v2
 
     - name: Restore NuGet packages API
-      run: nuget restore ./Productos.API/API.sln
+      run: nuget restore ./Productos.API/Productos.API.sln
 
     - name: Restore API project
       run: dotnet restore ./Productos.API/API/API.csproj
@@ -62,7 +61,7 @@ jobs:
       uses: NuGet/setup-nuget@v2
 
     - name: Restore NuGet packages Web
-      run: nuget restore ./Productos.Web/Web.sln
+      run: nuget restore ./Productos.Web/Productos.Web.sln
 
     - name: Restore Web project
       run: dotnet restore ./Productos.Web/Web/Web.csproj
