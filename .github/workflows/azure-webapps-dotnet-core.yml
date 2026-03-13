@@ -1,0 +1,141 @@
+name: CI-CD Azure Productos
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+  API_PROJECT_PATH: './Productos.API/API/API.csproj'
+  WEB_PROJECT_PATH: './Productos.Web/Web/Web.csproj'
+  DB_PROJECT_PATH: './Productos.API/Producto.BD/Producto.BD.sqlproj'
+
+  API_PUBLISH_PATH: './publish/api'
+  WEB_PUBLISH_PATH: './publish/web'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  deploy-db:
+    name: Deploy Database
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages for DB project
+        run: nuget restore ${{ env.DB_PROJECT_PATH }}
+
+      - name: Build DB project
+        run: msbuild ${{ env.DB_PROJECT_PATH }} /p:Configuration=${{ env.BUILD_CONFIGURATION }}
+
+      - name: Find DACPAC
+        id: find_dacpac
+        shell: pwsh
+        run: |
+          $dacpac = Get-ChildItem -Path . -Recurse -Filter *.dacpac | Select-Object -First 1
+          if (-not $dacpac) {
+            throw "No se encontró ningún archivo .dacpac"
+          }
+          "dacpac_path=$($dacpac.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy DACPAC to Azure SQL
+        uses: azure/sql-action@v2.3
+        with:
+          connection-string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          path: ${{ steps.find_dacpac.outputs.dacpac_path }}
+          action: publish
+
+  deploy-api:
+    name: Deploy API
+    runs-on: windows-latest
+    needs: deploy-db
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore API
+        run: dotnet restore ${{ env.API_PROJECT_PATH }}
+
+      - name: Build API
+        run: dotnet build ${{ env.API_PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Publish API
+        run: dotnet publish ${{ env.API_PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --output ${{ env.API_PUBLISH_PATH }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy API App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: sc701productos
+          package: ${{ env.API_PUBLISH_PATH }}
+
+  deploy-web:
+    name: Deploy Web
+    runs-on: windows-latest
+    needs: deploy-api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore Web
+        run: dotnet restore ${{ env.WEB_PROJECT_PATH }}
+
+      - name: Build Web
+        run: dotnet build ${{ env.WEB_PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Publish Web
+        run: dotnet publish ${{ env.WEB_PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --output ${{ env.WEB_PUBLISH_PATH }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Web App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: productosweb
+          package: ${{ env.WEB_PUBLISH_PATH }}
