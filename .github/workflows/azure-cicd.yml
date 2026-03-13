@@ -10,6 +10,7 @@ env:
   DOTNET_VERSION: '8.0.x'
 
 jobs:
+
   build-deploy-api:
     runs-on: windows-latest
 
@@ -22,27 +23,22 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v2
-
-    - name: Restore NuGet packages API
-      run: nuget restore ./Productos.API/Productos.API.sln
-
-    - name: Restore API project
-      run: dotnet restore ./Productos.API/API/Productos.API.sln
+    - name: Restore API
+      run: dotnet restore ./Productos.API/API/Producto.API.csproj
 
     - name: Build API
-      run: dotnet build ./Productos.API/API/Productos.API.sln --configuration Release --no-restore
+      run: dotnet build ./Productos.API/API/Producto.API.csproj --configuration Release --no-restore
 
     - name: Publish API
-      run: dotnet publish ./Productos.API/API/Productos.API.sln -c Release -o ./publish/api --no-build
+      run: dotnet publish ./Productos.API/API/Producto.API.csproj -c Release -o ./publish/api --no-build
 
-    - name: Deploy API to Azure
+    - name: Deploy API
       uses: azure/webapps-deploy@v3
       with:
         app-name: sc701productos
         publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
         package: ./publish/api
+
 
   build-deploy-web:
     runs-on: windows-latest
@@ -57,13 +53,7 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Setup NuGet
-      uses: NuGet/setup-nuget@v2
-
-    - name: Restore NuGet packages Web
-      run: nuget restore ./Productos.Web/Productos.Web.sln
-
-    - name: Restore Web project
+    - name: Restore Web
       run: dotnet restore ./Productos.Web/Web/Web.csproj
 
     - name: Build Web
@@ -72,7 +62,7 @@ jobs:
     - name: Publish Web
       run: dotnet publish ./Productos.Web/Web/Web.csproj -c Release -o ./publish/web --no-build
 
-    - name: Deploy Web to Azure
+    - name: Deploy Web
       uses: azure/webapps-deploy@v3
       with:
         app-name: productosweb
