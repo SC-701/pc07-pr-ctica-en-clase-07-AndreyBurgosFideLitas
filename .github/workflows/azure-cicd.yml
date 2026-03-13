@@ -23,6 +23,12 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+
+    - name: Restore legacy NuGet packages API
+      run: nuget restore ./Productos.API/Productos.API.sln -PackagesDirectory ./Productos.API/packages
+
     - name: Restore API
       run: dotnet restore ./Productos.API/API/Producto.API.csproj
 
@@ -38,7 +44,6 @@ jobs:
         app-name: sc701productos
         publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
         package: ./publish/api
-
 
   build-deploy-web:
     runs-on: windows-latest
